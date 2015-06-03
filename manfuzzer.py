@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 '''   Copyright 2012 Peter Chapman
 
    Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +27,7 @@ import time
 import subprocess
 from values.textgen import TextValueGenerator
 from values.filegen import FileValueGenerator
+from values.seedgen import SeedGenerator
 import legacymanfuzzer
 import os
 import signal
@@ -69,6 +72,7 @@ def main():
     argparser.add_argument('--programinputprob', help="The probability of giving the entire program an input. The default is %d." % DEFAULT_PROGRAM_INPUT_PROB, type=float, default=DEFAULT_PROGRAM_INPUT_PROB)
     argparser.add_argument('--stdinprob', help="The probability of feeding a file in through standard input. The default is %d." % DEFAULT_STDIN_PROB, type=float, default=DEFAULT_STDIN_PROB)
     argparser.add_argument('--legacy', help="Runs manfuzzer in the legacy mode that performs better magically for certain inputs.", action="store_true")
+    argparser.add_argument('--seeds',help="Directory to randomly select file seed", type=str, default=None)
     argparser.add_argument('executable', help='The relative or absolute path to the executable to be fuzzed.')
     
 
@@ -103,7 +107,8 @@ def main():
     programinputprob = args.programinputprob
     stdinprob = args.stdinprob
     valuesprob = args.valuesprob
-    
+    seeddir = args.seeds
+   
     
     logger.debug("%d test cases requested." % testcases)
     logger.debug("Test cases will be generated with a mean number of parameters %f and standard deviation %f." % (paramsmean,paramsstddev))
@@ -122,12 +127,13 @@ def main():
     fileprob = args.fileprob
     filegen = FileValueGenerator(filemean,filestddev)
     
-    
+    seedgens = SeedGenerator(seeddir)
+ 
     sumprobs = sum([textprob,fileprob])
     valuegens = set([(textprob/sumprobs,textgen),(fileprob/sumprobs,filegen)])
 
     legacy = args.legacy
-    generator = lambda : generate_testcases(executable, argumentgenerator, valuegens, testcases = testcases, paramsmean = paramsmean, paramsstddev = paramsstddev, valuesprob = valuesprob,programinputprob = programinputprob, stdinprob = stdinprob) 
+    generator = lambda : generate_testcases(executable, argumentgenerator, valuegens, seedgens, testcases = testcases, paramsmean = paramsmean, paramsstddev = paramsstddev, valuesprob = valuesprob,programinputprob = programinputprob, stdinprob = stdinprob, seeddir=seeddir) 
     if legacy:
         generator = lambda : legacymanfuzzer.legacy(executable,testcases,paramsmean,paramsstddev)
                  
@@ -167,8 +173,13 @@ def run_command_check(command,timeout):
     
 
 
-def generate_testcases(executable, argumentgenerator, valuegens, testcases = DEFAULT_TEST_CASES, paramsmean = DEFAULT_PARAMS_MEAN, paramsstddev = DEFAULT_PARAMS_STDDEV, valuesprob = DEFAULT_VALUES_PROB, programinputprob = DEFAULT_PROGRAM_INPUT_PROB, stdinprob = DEFAULT_STDIN_PROB):
+def generate_testcases(executable, argumentgenerator, valuegens, seedgens, testcases = DEFAULT_TEST_CASES, paramsmean = DEFAULT_PARAMS_MEAN, paramsstddev = DEFAULT_PARAMS_STDDEV, valuesprob = DEFAULT_VALUES_PROB, programinputprob = DEFAULT_PROGRAM_INPUT_PROB, stdinprob = DEFAULT_STDIN_PROB, seeddir=None):
     
+    if seeddir is not None:
+      programinputprob = -1
+      stdinprob = -1
+      valuesprob = -1
+
     generatedtestcases = set()
     for _ in range(testcases):
         num_flags_used = int(random.gauss(paramsmean, paramsstddev))
@@ -181,8 +192,11 @@ def generate_testcases(executable, argumentgenerator, valuegens, testcases = DEF
         if random.random() <= programinputprob:
             test_case += ' ' + pickgen(valuegens).generate()
         if random.random() <= stdinprob:
-            test_case += ' < ' + pickgen(valuegens).generate()    
-            
+            test_case += ' < ' + pickgen(valuegens).generate()
+   
+        if seeddir is not None:
+            test_case += ' ' + seedgens.generate()
+           
         if test_case not in generatedtestcases:            
             generatedtestcases.add(test_case)
             yield test_case
