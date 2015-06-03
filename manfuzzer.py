@@ -127,7 +127,10 @@ def main():
     fileprob = args.fileprob
     filegen = FileValueGenerator(filemean,filestddev)
     
-    seedgens = SeedGenerator(seeddir)
+    if seeddir is not None:
+        seedgens = SeedGenerator(seeddir)
+    else:
+        seedgens = None
  
     sumprobs = sum([textprob,fileprob])
     valuegens = set([(textprob/sumprobs,textgen),(fileprob/sumprobs,filegen)])
