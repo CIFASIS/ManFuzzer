@@ -29,7 +29,7 @@ def mineflags(executable):
 
 def _extract_arguments(command,timeout):
     try:
-        child = subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=True)
+        child = subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=True,env=dict())
         child_output = child.communicate(timeout = timeout)
         return repr(child_output)        
     except Exception as e:

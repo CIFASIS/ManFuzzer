@@ -28,6 +28,8 @@ import subprocess
 from values.textgen import TextValueGenerator
 from values.filegen import FileValueGenerator
 from values.seedgen import SeedGenerator
+from values.datagen import Int32ValueGenerator
+
 import legacymanfuzzer
 import os
 import signal
@@ -134,45 +136,46 @@ def main():
  
     sumprobs = sum([textprob,fileprob])
     valuegens = set([(textprob/sumprobs,textgen),(fileprob/sumprobs,filegen)])
+    intgens = Int32ValueGenerator()
+
 
     legacy = args.legacy
-    generator = lambda : generate_testcases(executable, argumentgenerator, valuegens, seedgens, testcases = testcases, paramsmean = paramsmean, paramsstddev = paramsstddev, valuesprob = valuesprob,programinputprob = programinputprob, stdinprob = stdinprob, seeddir=seeddir) 
+    generator = lambda : generate_testcases(executable, argumentgenerator, intgens, seedgens, testcases = testcases, paramsmean = paramsmean, paramsstddev = paramsstddev, valuesprob = valuesprob,programinputprob = programinputprob, stdinprob = stdinprob, seeddir=seeddir) 
     if legacy:
         generator = lambda : legacymanfuzzer.legacy(executable,testcases,paramsmean,paramsstddev)
                  
     # Generate and possibly execute test cases
     start_time = time.time()
+    collected = 0
     for test_case in generator():        
-        print(executable + ' ' + test_case)
-        if execute:
-            if time.time() - start_time > exectime:
-                logger.info("Time has expired for fuzzing %s" % executable)
-                break
-            command = executable + " " + test_case
-            logger.info("Executing command '%s'" % (command))
-            try:
-                run_command_check(command,timeout)
-            except subprocess.CalledProcessError as e:                
-                returncode = e.returncode
-                if os.WIFSIGNALED(returncode) and os.WTERMSIG(returncode) == signal.SIGSEGV:                    
-                    logger.warning("Crash (crash) input: %s" % str(command))
-                    try: 
-                        run_command("cp `ls -t /tmp/tmp* | head -1` tempfiles/.",1) # Save crash input        
-                    except Exception as e:
-                        logger.error("Could not copy temp file")
-            except subprocess.TimeoutExpired:
-                logger.info("Command timeout: %s" % str(command))                       
-            except Exception as e:
-                logger.error("Command failed: %s" % str(command))
-                logger.exception(e)    
-                
+        cmd = executable + ' ' + test_case
+        #print("trying:",cmd)
+        if opened_files(cmd):
+          collected = collected + 1
+          for seed in seedgens.get_all():
+            print(cmd.replace("<seed>",seed)) 
+        if collected == testcases:
+          break
     
     # Close
-def run_command(command,timeout):    
+def run_command(command,timeout): 
     return subprocess.call(command,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,shell=True,timeout = timeout)
 
 def run_command_check(command,timeout):    
     return subprocess.check_call(command,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,shell=True,timeout = timeout)
+
+def opened_files(command, timeout=5):
+
+  # check if the testcase is opened
+  open("/tmp/somefile", 'a').close()
+  command = command.replace("<seed>","/tmp/somefile")
+  output = subprocess.Popen(["timeout","-k","1",str(timeout), "strace","-e","open"]+command.split(" "), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, stdin=subprocess.PIPE, env=dict()).communicate()
+
+  #print(output[1])
+  if 'open("/tmp/somefile' in str(output[1]):
+      return True
+
+  return False
     
 
 
@@ -181,25 +184,26 @@ def generate_testcases(executable, argumentgenerator, valuegens, seedgens, testc
     if seeddir is not None:
       programinputprob = -1
       stdinprob = -1
-      valuesprob = -1
+      #valuesprob = -1
 
     generatedtestcases = set()
-    for _ in range(testcases):
+    for _ in range(testcases*100):
         num_flags_used = int(random.gauss(paramsmean, paramsstddev))
         num_flags_used = max(0, min(num_flags_used, argumentgenerator.size()))
         test_case = set()
         for _ in range(num_flags_used):
-            test_case.add(argumentgenerator.genarg(value=(None if random.random() >= valuesprob else pickgen(valuegens).generate())))
+            test_case.add(argumentgenerator.genarg(value=(None if random.random() >= valuesprob else valuegens.generate())))
         test_case = ' '.join(test_case)
         
         if random.random() <= programinputprob:
-            test_case += ' ' + pickgen(valuegens).generate()
+            test_case += ' ' + valuegens.generate()
         if random.random() <= stdinprob:
             test_case += ' < ' + pickgen(valuegens).generate()
    
         if seeddir is not None:
-            test_case += ' ' + seedgens.generate()
-           
+            test_case += ' ' + "<seed>"
+            #test_case += ' ' + seed#seedgens.generate()
+        #print(test_case) 
         if test_case not in generatedtestcases:            
             generatedtestcases.add(test_case)
             yield test_case

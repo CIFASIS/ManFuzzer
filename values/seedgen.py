@@ -23,12 +23,15 @@ class SeedGenerator(object):
         for dirpath, dirnames, filenames in os.walk(directory):
           for filename in filenames:
             if not ("index.html" in filename):
-              self.seeds.append(os.path.join(dirpath, filename))
+              self.seeds.append(os.path.abspath(os.path.join(dirpath, filename)))
             #else:
             #  print(os.path.join(dirpath, filename))
          
        
     def generate(self):
         return "file:"+random.choice(self.seeds) 
+
+    def get_all(self):
+        return map(lambda x: "file:"+x,self.seeds)
         
         

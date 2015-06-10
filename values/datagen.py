@@ -6,6 +6,20 @@ Created on Dec 30, 2012
 import random
 import string
 
+
+class Int32ValueGenerator(object):
+    '''
+    Generates int32 values.
+    '''
+
+
+    def __init__(self):
+        pass
+       
+        
+    def generate(self):
+        return str(random.randint(-2147483647,2147483647))
+
 class DataValueGenerator(object):
     '''
     Generates random binary values.
