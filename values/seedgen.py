@@ -1,7 +1,5 @@
 '''
-Created on Dec 30, 2012
-
-@author: Peter
+@author: Gustavo
 '''
 import os
 import os.path

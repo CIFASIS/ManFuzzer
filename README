@@ -1,7 +1,8 @@
-Requires Python 3. 
+# The ManFuzzer
 
-Tested on Windows but should work on Linux/OS X.
+Given a binary path this file produces test cases to that binary
+based on the flags found in -h,-H,--help and the man page. There is also the
+option to execute those test cases.
 
-usage: manfuzzer.py [-h] [-d] [-c COMBINATIONS] [-o OUTFILE] [-m MEAN]
-                    [-s STDDEV]
-                    executable
+Originally created by Peter Chapman in 2012, it was recently modified for a [large-scale
+experiment on vulnerability prediction](TODO).
